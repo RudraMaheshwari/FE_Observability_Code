@@ -1,0 +1,90 @@
+"""FastAPI backend for the Observability UI.
+
+Exposes the three dashboard lenses + the semantic-diff (with LLM change summaries) as JSON APIs the
+Next.js frontend consumes. Reuses the main app's Lakebase / Databricks / embeddings / LLM via the
+`backend.*` functions. Read-only.
+
+Run from the observability_ui/ folder (so `backend` is importable):
+    uvicorn backend.main:app --reload --port 8600
+    # or from the project root:  uvicorn backend.main:app --app-dir observability_ui --reload --port 8600
+"""
+
+from __future__ import annotations
+
+from backend import lakebase_queries as q
+from backend import levels, semantic
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+app = FastAPI(title="AI Auditor — Observability API", version="1.0")
+
+# The Next.js dev server runs on :3000; allow it (and any origin, since this is internal read-only).
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+)
+
+
+def _guard(fn):
+    try:
+        return fn()
+    except Exception as exc:  # noqa: BLE001 — surface a clean 500 with the reason
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/health")
+def health() -> dict:
+    return {"ok": True, "lakebase_driver": q.driver_ok()}
+
+
+@app.get("/api/technical")
+def technical() -> dict:
+    return _guard(levels.technical)
+
+
+@app.get("/api/user")
+def user() -> dict:
+    return _guard(levels.user_level)
+
+
+@app.get("/api/leadership")
+def leadership(
+    manual_hours: float | None = Query(default=None, description="Override: manual analyst hours per audit"),
+    hourly: float | None = Query(default=None, description="Override: blended analyst cost per hour (USD)"),
+) -> dict:
+    return _guard(lambda: levels.leadership(manual_hours, hourly))
+
+
+@app.get("/api/runs/{run_id}")
+def run_detail(run_id: str) -> dict:
+    return _guard(lambda: q.run_detail(run_id))
+
+
+@app.post("/api/refresh")
+def refresh() -> dict:
+    q.clear_cache()
+    return {"ok": True}
+
+
+class CompareRequest(BaseModel):
+    source: str = "AI_Risk_Summary"      # table base, e.g. AI_Risk_Summary | AI_Scope
+    engagement: str | None = None        # auto-builds <base>_<eng> + _copy
+    orig_fqn: str | None = None          # or pass fully-qualified names directly
+    copy_fqn: str | None = None
+    key_col: str | None = None
+    threshold: float = semantic.DEFAULT_SIM_THRESHOLD
+    summarize: bool = True
+
+
+@app.post("/api/semantic/compare")
+def semantic_compare(req: CompareRequest) -> dict:
+    if req.engagement and not (req.orig_fqn and req.copy_fqn):
+        orig = semantic.fqn(req.source, req.engagement)
+        copy = semantic.fqn(req.source, req.engagement, copy=True)
+    else:
+        orig, copy = req.orig_fqn, req.copy_fqn
+    if not orig or not copy:
+        raise HTTPException(status_code=400, detail="Provide engagement, or both orig_fqn and copy_fqn.")
+    result = _guard(lambda: semantic.compare(orig, copy, req.key_col, req.threshold, req.summarize))
+    result["tables"] = {"original": orig, "copy": copy}
+    return result
