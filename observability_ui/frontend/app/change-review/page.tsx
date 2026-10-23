@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, useConfig } from "@/lib/api";
 import { Section, KpiRow, Kpi, Panel, EmptyState, ErrorNote, fmtInt } from "@/components/ui";
 import { Donut } from "@/components/charts";
 import clsx from "clsx";
@@ -21,6 +21,10 @@ export default function ChangeReview() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
+  const { data: cfg } = useConfig();
+
+  const origPreview = cfg?.catalog && engagement ? `${cfg.catalog}.${cfg.output_schema}.${source}_${engagement}` : "";
+  const copyPreview = origPreview ? `${origPreview}_copy` : "";
 
   async function run() {
     setError(null); setLoading(true); setResult(null);
@@ -61,6 +65,9 @@ export default function ChangeReview() {
             {loading ? "Comparing…" : "Compare"}
           </button>
         </div>
+        {!result && origPreview && (
+          <div className="mt-2 text-xs text-muted">will compare <code>{origPreview}</code> ↔ <code>{copyPreview}</code></div>
+        )}
         {result?.tables && (
           <div className="mt-2 text-xs text-muted">original <code>{result.tables.original}</code> · copy <code>{result.tables.copy}</code></div>
         )}

@@ -14,6 +14,15 @@ async function fetcher(path: string) {
 
 export const api = {
   base: BASE,
+  async setRemediation(finding_uid: string, status: string, note = "") {
+    const res = await fetch(`${BASE}/api/remediation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ finding_uid, status, note }),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    return res.json();
+  },
   async compare(body: Record<string, unknown>) {
     const res = await fetch(`${BASE}/api/semantic/compare`, {
       method: "POST",
@@ -40,3 +49,7 @@ export const useExecutive = (manualHours?: string, hourly?: string) => {
 };
 export const useHealth = () => useSWR("/api/health", fetcher);
 export const useRunDetail = (id: string | null) => useSWR(id ? `/api/runs/${id}` : null, fetcher);
+export const useConfig = () => useSWR("/api/config", fetcher);
+export const useRunsList = (limit = 200) => useSWR(`/api/runs?limit=${limit}`, fetcher);
+export const useFindingsByScope = (scope: string | null) =>
+  useSWR(scope ? `/api/findings?scope=${encodeURIComponent(scope)}` : null, fetcher);

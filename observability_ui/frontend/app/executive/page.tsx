@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { useExecutive } from "@/lib/api";
 import { Section, KpiRow, Kpi, Panel, Skeleton, EmptyState, ErrorNote, fmtUsd, fmtInt } from "@/components/ui";
-import { Bars, Donut, SEVERITY } from "@/components/charts";
+import { Bars, Donut, AreaTrend, SEVERITY } from "@/components/charts";
+
+function Delta({ v }: { v: number | null }) {
+  if (v == null) return <span className="text-muted">—</span>;
+  const up = v >= 0;
+  return <span className={up ? "text-[#28c76f]" : "text-accent"}>{up ? "▲" : "▼"} {Math.abs(v)}%</span>;
+}
 
 export default function Executive() {
   // Empty inputs → backend uses the env/default assumption; typing a value recomputes ROI server-side.
@@ -25,6 +31,21 @@ export default function Executive() {
             <Kpi label="Estimated ROI" value={data.kpis.roi_pct != null ? `${data.kpis.roi_pct}%` : "—"} sub={`~${fmtInt(data.kpis.est_hours_saved)} analyst hrs saved`} />
           </KpiRow>
 
+          {data.qoq?.quarter && (
+            <div className="card px-4 py-2 text-xs text-muted">
+              <span className="font-semibold text-text">{data.qoq.quarter} vs {data.qoq.prev_quarter}:</span>{" "}
+              audits <Delta v={data.qoq.audits_delta_pct} /> · high-risk <Delta v={data.qoq.high_delta_pct} /> · AI spend <Delta v={data.qoq.spend_delta_pct} />
+            </div>
+          )}
+
+          <KpiRow>
+            <Kpi label="Findings / audit" value={data.kpis.findings_per_audit} sub="program effectiveness" />
+            <Kpi label="High-risk rate" value={`${data.kpis.high_risk_rate_pct}%`} sub="of all findings" />
+            <Kpi label="Scopes covered" value={fmtInt(data.kpis.scopes_covered)} sub="risk coverage" />
+            <Kpi label="Recurrences (KRI)" value={fmtInt(data.kpis.recurrence_findings)} sub="repeat findings" />
+            <Kpi label="Avg cycle" value={`${data.kpis.avg_cycle_minutes}m`} sub="per audit run" />
+          </KpiRow>
+
           <div className="grid grid-cols-2 gap-4">
             <Panel title="AI spend vs. estimated manual cost">
               <Bars data={data.spend_vs_value.map((d: any) => ({ label: d.label, usd: d.usd }))} x="label" y="usd" h={300} color="#28c76f" />
@@ -39,6 +60,27 @@ export default function Executive() {
             <Kpi label="Cost per high-risk" value={data.kpis.cost_per_high_risk != null ? fmtUsd(data.kpis.cost_per_high_risk) : "—"} />
             <Kpi label="Estimated value" value={fmtUsd(data.kpis.est_value_usd)} sub="vs. manual effort" />
           </div>
+
+          {data.quarterly?.length > 0 && (
+            <div className="grid grid-cols-2 gap-4">
+              <Panel title="Quarterly — audits & high-risk findings">
+                <AreaTrend data={data.quarterly} x="quarter" series={["audits", "high"]} h={280} />
+              </Panel>
+              <Panel title="Quarterly — AI spend (USD)">
+                <Bars data={data.quarterly} x="quarter" y="spend" h={280} color="#28c76f" />
+              </Panel>
+            </div>
+          )}
+
+          {data.remediation && (
+            <div className="grid grid-cols-3 gap-4">
+              <Panel title="High-risk remediation status" className="col-span-2">
+                <Donut data={data.remediation} nameKey="status" valueKey="count"
+                  map={{ Open: "#ff4d4f", "In progress": "#ffa64d", Resolved: "#28c76f" }} h={280} />
+              </Panel>
+              <Kpi label="Unresolved high-risk" value={fmtInt(data.kpis.unresolved_high_risk)} sub="open + in progress — set status in Risk Overview" accent />
+            </div>
+          )}
 
           <Panel title="Top scope areas by findings">
             <Bars data={topScopes(data.top_scopes)} x="scope_area" y="findings" h={300} color="#5b8cff" />

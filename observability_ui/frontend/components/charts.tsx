@@ -48,7 +48,7 @@ export function Bars({ data, x, y, h = 280, color = SERIES[0] }: any) {
   );
 }
 
-export function HBars({ data, x, y, colorKey, map, h = 340 }: any) {
+export function HBars({ data, x, y, colorKey, map, h = 340, onBarClick }: any) {
   const c = useChartColors();
   return (
     <ResponsiveContainer width="100%" height={h}>
@@ -57,7 +57,8 @@ export function HBars({ data, x, y, colorKey, map, h = 340 }: any) {
         <XAxis type="number" tick={{ fill: c.muted, fontSize: 12 }} axisLine={false} tickLine={false} />
         <YAxis type="category" dataKey={y} width={150} tick={{ fill: c.muted, fontSize: 11 }} axisLine={false} tickLine={false} />
         <Tooltip {...tip(c)} />
-        <Bar dataKey={x} radius={[0, 6, 6, 0]}>
+        <Bar dataKey={x} radius={[0, 6, 6, 0]} cursor={onBarClick ? "pointer" : "default"}
+          onClick={(d: any) => onBarClick && onBarClick(d?.payload?.[y])}>
           {data.map((d: any, i: number) => (
             <Cell key={i} fill={(map && map[d[colorKey]]) || SERIES[i % SERIES.length]} />
           ))}

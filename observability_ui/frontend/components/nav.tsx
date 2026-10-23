@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Activity, ShieldAlert, Briefcase, GitCompare, RefreshCw } from "lucide-react";
+import { Activity, Layers, ShieldAlert, Briefcase, GitCompare, RefreshCw } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { api } from "@/lib/api";
 import { mutate } from "swr";
 
 const LINKS = [
   { href: "/", label: "Operations", icon: Activity },
+  { href: "/runs", label: "Runs", icon: Layers },
   { href: "/risk", label: "Risk Overview", icon: ShieldAlert },
   { href: "/executive", label: "Executive", icon: Briefcase },
   { href: "/change-review", label: "Change Review", icon: GitCompare },

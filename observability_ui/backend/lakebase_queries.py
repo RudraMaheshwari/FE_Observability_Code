@@ -63,6 +63,62 @@ def clear_cache() -> None:
     _CACHE.clear()
 
 
+def _exec(sql: str, params: tuple = ()) -> None:
+    """Run a write (DDL/DML) and commit. Used only by remediation tracking."""
+    from src.observability.lakebase import LakebaseConnection
+
+    conn = LakebaseConnection(settings()).open()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ── Remediation tracking (open vs resolved high-risk) ───────────────────────────
+REMEDIATION = f"{OBS_SCHEMA}.obs_remediation"
+_VALID_STATUS = {"open", "in_progress", "resolved"}
+_remediation_ready = False
+
+
+def _ensure_remediation() -> None:
+    global _remediation_ready
+    if _remediation_ready:
+        return
+    _exec(
+        f"CREATE TABLE IF NOT EXISTS {REMEDIATION} ("
+        f"finding_uid TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'open', "
+        f"note TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+    )
+    _remediation_ready = True
+
+
+def set_remediation(finding_uid: str, status: str, note: str = "") -> None:
+    status = status if status in _VALID_STATUS else "open"
+    _ensure_remediation()
+    _exec(
+        f"INSERT INTO {REMEDIATION} (finding_uid, status, note, updated_at) VALUES (%s, %s, %s, now()) "
+        f"ON CONFLICT (finding_uid) DO UPDATE SET status = EXCLUDED.status, note = EXCLUDED.note, updated_at = now()",
+        (finding_uid, status, note),
+    )
+    clear_cache()
+
+
+def remediation_summary() -> dict:
+    """Open / in-progress / resolved counts for HIGH-risk findings (findings with no row = 'open')."""
+    _ensure_remediation()
+    rows = _rows(
+        f"SELECT COALESCE(r.status, 'open') AS status, COUNT(*) AS n "
+        f"FROM {FINDING} f LEFT JOIN {REMEDIATION} r ON f.finding_uid::text = r.finding_uid "
+        f"WHERE LOWER(COALESCE(f.risk_category, '')) LIKE 'high%%' GROUP BY 1"
+    )
+    out = {"open": 0, "in_progress": 0, "resolved": 0}
+    for r in rows:
+        out[str(r["status"])] = int(r["n"])
+    return out
+
+
 # ── Runs ────────────────────────────────────────────────────────────────────────
 def runs(limit: int = 500) -> list[dict]:
     return _rows(f"SELECT * FROM {RUN} ORDER BY started_at DESC LIMIT %s", (limit,))
@@ -108,6 +164,19 @@ def findings_by_scope() -> list[dict]:
 def recurrence_count() -> int:
     r = _rows(f"SELECT COUNT(*) AS n FROM {FINDING} WHERE is_recurrence = true")
     return int(r[0]["n"]) if r else 0
+
+
+def findings_for_scope(scope: str) -> list[dict]:
+    """Finding rows for one scope area (with remediation status) — Risk-Overview drill-down."""
+    _ensure_remediation()
+    return _rows(
+        f"SELECT f.finding_uid::text AS finding_uid, f.scope_area, f.risk_type, f.risk_category, "
+        f"f.likelihood, f.impact, f.matrix_score, f.is_recurrence, "
+        f"COALESCE(r.status, 'open') AS remediation_status "
+        f"FROM {FINDING} f LEFT JOIN {REMEDIATION} r ON f.finding_uid::text = r.finding_uid "
+        f"WHERE COALESCE(f.scope_area, '(none)') = %s ORDER BY f.matrix_score DESC NULLS LAST LIMIT 500",
+        (scope,),
+    )
 
 
 def ingestion_by_status() -> list[dict]:

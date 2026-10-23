@@ -34,6 +34,18 @@ def _iso(v: Any) -> str | None:
     return v.isoformat() if isinstance(v, datetime) else str(v)
 
 
+def _quarter_key(v: Any) -> str | None:
+    if not isinstance(v, datetime):
+        return None
+    return f"{v.year}-Q{(v.month - 1) // 3 + 1}"
+
+
+def _pct_delta(cur: float, prev: float) -> float | None:
+    if not prev:
+        return None
+    return round((cur - prev) / prev * 100, 1)
+
+
 def _series(runs: list[dict], field: str) -> list[dict]:
     """[{t, value, auditor, status}] ordered by time, for a per-run metric."""
     out = []
@@ -165,6 +177,44 @@ def leadership(manual_hours: float | None = None, hourly: float | None = None) -
     manual_cost = hours_saved * hourly
     roi_pct = round((manual_cost - total_cost) / total_cost * 100, 1) if total_cost > 0 else None
 
+    # Audit-program effectiveness / posture (web-informed: coverage, findings/audit, KRIs, efficiency).
+    scope_rows = q.findings_by_scope()
+    scopes_covered = len({s["scope_area"] for s in scope_rows if s.get("scope_area") not in (None, "(none)")})
+    recurrence = q.recurrence_count()
+    rem = q.remediation_summary()
+    unresolved_high = rem["open"] + rem["in_progress"]
+    avg_cycle_min = round(sum(_f(r.get("duration_ms")) for r in runs) / len(runs) / 60000, 1) if runs else 0
+
+    # Quarterly trend — audits, spend, high-risk caught, ROI per quarter.
+    qmap: dict[str, dict] = {}
+    for r in runs:
+        qk = _quarter_key(r.get("started_at"))
+        if not qk:
+            continue
+        d = qmap.setdefault(qk, {"quarter": qk, "audits": 0, "spend": 0.0, "high": 0, "findings": 0})
+        d["audits"] += 1
+        d["spend"] += _f(r.get("total_cost_usd"))
+        d["high"] += _i(r.get("findings_high"))
+        d["findings"] += _i(r.get("findings_high")) + _i(r.get("findings_medium")) + _i(r.get("findings_low"))
+    quarterly = []
+    for d in sorted(qmap.values(), key=lambda x: x["quarter"]):
+        d["spend"] = round(d["spend"], 2)
+        d["est_value"] = round(d["audits"] * manual_hours * hourly, 0)
+        d["roi_pct"] = round((d["est_value"] - d["spend"]) / d["spend"] * 100, 1) if d["spend"] > 0 else None
+        quarterly.append(d)
+
+    # Quarter-over-quarter deltas for the headline KPIs (last full quarter vs the one before).
+    qoq = {}
+    if len(quarterly) >= 2:
+        cur, prev = quarterly[-1], quarterly[-2]
+        qoq = {
+            "quarter": cur["quarter"],
+            "prev_quarter": prev["quarter"],
+            "audits_delta_pct": _pct_delta(cur["audits"], prev["audits"]),
+            "high_delta_pct": _pct_delta(cur["high"], prev["high"]),
+            "spend_delta_pct": _pct_delta(cur["spend"], prev["spend"]),
+        }
+
     return {
         "kpis": {
             "audits_delivered": len(completed),
@@ -176,7 +226,20 @@ def leadership(manual_hours: float | None = None, hourly: float | None = None) -
             "est_hours_saved": int(hours_saved),
             "est_value_usd": round(manual_cost, 0),
             "roi_pct": roi_pct,
+            "findings_per_audit": round(total_findings / n_audits, 1) if n_audits else 0,
+            "high_risk_rate_pct": round(high / total_findings * 100, 1) if total_findings else 0,
+            "scopes_covered": scopes_covered,
+            "recurrence_findings": recurrence,
+            "avg_cycle_minutes": avg_cycle_min,
+            "unresolved_high_risk": unresolved_high,
         },
+        "remediation": [
+            {"status": "Open", "count": rem["open"]},
+            {"status": "In progress", "count": rem["in_progress"]},
+            {"status": "Resolved", "count": rem["resolved"]},
+        ],
+        "quarterly": quarterly,
+        "qoq": qoq,
         "assumptions": {
             "manual_hours_per_audit": manual_hours,
             "analyst_hourly_usd": hourly,

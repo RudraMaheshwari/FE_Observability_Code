@@ -1,11 +1,21 @@
 "use client";
 
-import { useRisk } from "@/lib/api";
+import { useState } from "react";
+import { mutate } from "swr";
+import { api, useRisk, useFindingsByScope } from "@/lib/api";
 import { Section, KpiRow, Kpi, Panel, Skeleton, EmptyState, ErrorNote, fmtInt } from "@/components/ui";
 import { Donut, HBars, Bars, SEVERITY } from "@/components/charts";
 
 export default function RiskOverview() {
   const { data, error, isLoading } = useRisk();
+  const [scope, setScope] = useState<string | null>(null);
+  const { data: detail, isLoading: detailLoading } = useFindingsByScope(scope);
+
+  async function setStatus(uid: string, status: string) {
+    await api.setRemediation(uid, status);
+    if (scope) mutate(`/api/findings?scope=${encodeURIComponent(scope)}`);
+    mutate("/api/leadership"); // Executive remediation counts update too
+  }
 
   return (
     <>
@@ -38,12 +48,57 @@ export default function RiskOverview() {
             </Panel>
           </div>
 
-          <Panel title="Findings by scope area × severity (top 15)">
+          <Panel title="Findings by scope area × severity (top 15) — click a bar to drill in">
             <HBars
               data={topScopes(data.findings_by_scope)}
               y="scope_area" x="findings" colorKey="risk_category" map={SEVERITY} h={420}
+              onBarClick={(s: string) => setScope(s)}
             />
           </Panel>
+
+          {scope && (
+            <Panel title={`Findings in “${scope}”`}>
+              <button className="btn mb-3" onClick={() => setScope(null)}>✕ Close detail</button>
+              {detailLoading ? (
+                <div className="text-sm text-muted">Loading findings…</div>
+              ) : !detail?.findings?.length ? (
+                <div className="text-sm text-muted">No finding rows for this scope.</div>
+              ) : (
+                <div className="overflow-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead><tr className="text-muted">
+                      {["risk_type", "risk_category", "likelihood", "impact", "matrix_score", "recurrence", "status"].map((c) => (
+                        <th key={c} className="border-b border-border px-2 py-1.5 font-semibold">{c}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {detail.findings.map((r: any, i: number) => (
+                        <tr key={i} className="align-top hover:bg-surface2">
+                          <td className="max-w-[360px] truncate border-b border-border px-2 py-1.5">{String(r.risk_type ?? "")}</td>
+                          <td className="border-b border-border px-2 py-1.5">{String(r.risk_category ?? "")}</td>
+                          <td className="border-b border-border px-2 py-1.5">{String(r.likelihood ?? "")}</td>
+                          <td className="border-b border-border px-2 py-1.5">{String(r.impact ?? "")}</td>
+                          <td className="border-b border-border px-2 py-1.5">{String(r.matrix_score ?? "")}</td>
+                          <td className="border-b border-border px-2 py-1.5">{r.is_recurrence ? "yes" : "no"}</td>
+                          <td className="border-b border-border px-2 py-1.5">
+                            <select
+                              className="input py-1"
+                              value={r.remediation_status || "open"}
+                              onChange={(e) => setStatus(r.finding_uid, e.target.value)}
+                            >
+                              <option value="open">open</option>
+                              <option value="in_progress">in progress</option>
+                              <option value="resolved">resolved</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+          )}
 
           <Panel title="By auditor">
             <table className="w-full text-left text-sm">

@@ -37,6 +37,35 @@ def health() -> dict:
     return {"ok": True, "lakebase_driver": q.driver_ok()}
 
 
+@app.get("/api/config")
+def config() -> dict:
+    """Catalog + output schema so the UI can preview Delta table FQNs live (Change Review)."""
+    s = semantic.settings()
+    return {"catalog": getattr(s, "databricks_catalog", ""), "output_schema": semantic.output_schema()}
+
+
+@app.get("/api/runs")
+def runs(limit: int = Query(default=200, le=1000)) -> dict:
+    return {"runs": _guard(lambda: q.runs(limit))}
+
+
+@app.get("/api/findings")
+def findings(scope: str = Query(..., description="Scope area to drill into")) -> dict:
+    return {"scope": scope, "findings": _guard(lambda: q.findings_for_scope(scope))}
+
+
+class RemediationRequest(BaseModel):
+    finding_uid: str
+    status: str                # open | in_progress | resolved
+    note: str = ""
+
+
+@app.post("/api/remediation")
+def remediation(req: RemediationRequest) -> dict:
+    _guard(lambda: q.set_remediation(req.finding_uid, req.status, req.note))
+    return {"ok": True, "finding_uid": req.finding_uid, "status": req.status}
+
+
 @app.get("/api/technical")
 def technical() -> dict:
     return _guard(levels.technical)
