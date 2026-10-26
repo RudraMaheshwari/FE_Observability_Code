@@ -38,10 +38,12 @@ export const api = {
   },
 };
 
-export const useTechnical = () => useSWR("/api/technical", fetcher);
-export const useRisk = () => useSWR("/api/user", fetcher);
-export const useExecutive = (manualHours?: string, hourly?: string) => {
-  const qs = new URLSearchParams();
+const withQs = (path: string, qs?: string) => (qs ? `${path}${path.includes("?") ? "&" : "?"}${qs}` : path);
+
+export const useTechnical = (dateQs?: string) => useSWR(withQs("/api/technical", dateQs), fetcher);
+export const useRisk = (dateQs?: string) => useSWR(withQs("/api/user", dateQs), fetcher);
+export const useExecutive = (manualHours?: string, hourly?: string, dateQs?: string) => {
+  const qs = new URLSearchParams(dateQs);
   if (manualHours) qs.set("manual_hours", manualHours);
   if (hourly) qs.set("hourly", hourly);
   const q = qs.toString();
@@ -53,3 +55,9 @@ export const useConfig = () => useSWR("/api/config", fetcher);
 export const useRunsList = (limit = 200) => useSWR(`/api/runs?limit=${limit}`, fetcher);
 export const useFindingsByScope = (scope: string | null) =>
   useSWR(scope ? `/api/findings?scope=${encodeURIComponent(scope)}` : null, fetcher);
+export const useLlm = () => useSWR("/api/llm", fetcher);
+export const useQuestions = (limit = 1000) => useSWR(`/api/questions?limit=${limit}`, fetcher);
+export const useQuestionCalls = (uid: string | null) =>
+  useSWR(uid ? `/api/questions/${uid}/calls` : null, fetcher);
+export const useAuditor = (a: string | null) =>
+  useSWR(a ? `/api/auditors/${encodeURIComponent(a)}` : null, fetcher);

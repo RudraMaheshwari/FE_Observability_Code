@@ -64,5 +64,66 @@ export function ErrorNote({ error }: { error: any }) {
   );
 }
 
-export function fmtUsd(n: number) { return `$${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`; }
-export function fmtInt(n: number) { return (n || 0).toLocaleString(); }
+/** In-page sub-navigation (the Streamlit st.tabs equivalent) — one nav, many sub-views. */
+export function Tabs({ tabs, active, onChange }: { tabs: string[]; active: string; onChange: (t: string) => void }) {
+  return (
+    <div className="mb-3 flex flex-wrap gap-1">
+      {tabs.map((t) => (
+        <button key={t} onClick={() => onChange(t)} className={clsx("navlink", active === t && "navlink-active")}>{t}</button>
+      ))}
+    </div>
+  );
+}
+
+/** Export an array of row objects to a downloaded CSV (RFC-4180 quoting). */
+export function toCsv(rows: any[], columns?: string[]): string {
+  if (!rows?.length) return "";
+  const cols = columns || Object.keys(rows[0]);
+  const esc = (v: any) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
+}
+
+export function downloadCsv(rows: any[], filename: string, columns?: string[]) {
+  const csv = toCsv(rows, columns);
+  if (!csv) return;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function ExportButton({ rows, filename, columns, label = "Export CSV" }: { rows: any[]; filename: string; columns?: string[]; label?: string }) {
+  return (
+    <button className="btn text-xs" disabled={!rows?.length} onClick={() => downloadCsv(rows, filename, columns)}>
+      ⬇ {label}
+    </button>
+  );
+}
+
+export function downloadJson(data: any, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".json") ? filename : `${filename}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function ExportJsonButton({ data, filename, label = "Export JSON", disabled }: { data: any; filename: string; label?: string; disabled?: boolean }) {
+  return (
+    <button className="btn text-xs" disabled={disabled} onClick={() => downloadJson(data, filename)}>
+      ⬇ {label}
+    </button>
+  );
+}
+
+export function fmtUsd(n: number) { return `$${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`; }
+export function fmtInt(n: number) { return (Number(n) || 0).toLocaleString(); }
+export function fmtTok(n: number) { const v = Number(n) || 0; return v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}k` : String(v); }

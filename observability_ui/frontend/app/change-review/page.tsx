@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api, useConfig } from "@/lib/api";
-import { Section, KpiRow, Kpi, Panel, EmptyState, ErrorNote, fmtInt } from "@/components/ui";
+import { Section, KpiRow, Kpi, Panel, EmptyState, ErrorNote, ExportButton, ExportJsonButton, fmtInt } from "@/components/ui";
 import { Donut } from "@/components/charts";
 import clsx from "clsx";
 
@@ -101,6 +101,25 @@ export default function ChangeReview() {
               )}
             </Panel>
           </div>
+
+          {modified.length > 0 && (
+            <div className="flex justify-end gap-2">
+              <ExportButton label="Retraining CSV" filename={`change_review_${source}_${engagement}`}
+                rows={modified.flatMap((r: any) =>
+                  (r.diffs?.length ? r.diffs : [{ column: "", before: "", after: "" }]).map((d: any) => ({
+                    key: r.key, change_type: r.change_type || "", summary: r.summary || "",
+                    similarity: r.similarity ?? "", field: d.column, before: d.before, after: d.after,
+                  })))} />
+              <ExportJsonButton label="Retraining JSON" filename={`change_review_${source}_${engagement}`}
+                data={{
+                  dataset: `${source}_${engagement}`, tables: result.tables, summary: s,
+                  changes: modified.map((r: any) => ({
+                    key: r.key, change_type: r.change_type || "", summary: r.summary || "",
+                    similarity: r.similarity ?? null, diffs: r.diffs,
+                  })),
+                }} />
+            </div>
+          )}
 
           {modified.map((r: any) => (
             <div key={r.key} className="card p-4">

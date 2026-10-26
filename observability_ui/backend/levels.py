@@ -67,8 +67,9 @@ def _run_risk_band(r: dict) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def technical() -> dict:
-    runs = q.runs()
+def technical(since: str | None = None, until: str | None = None) -> dict:
+    rids = q.run_ids_in_window(since, until)
+    runs = q.runs(since=since, until=until)
     kpis = {
         "runs": len(runs),
         "completed": sum(1 for r in runs if r.get("status") == "completed"),
@@ -87,10 +88,10 @@ def technical() -> dict:
              "output": _f(r.get("total_output_tokens"))}
             for r in sorted(runs, key=lambda x: str(x.get("started_at") or ""))
         ],
-        "llm_by_stage": q.llm_by("stage"),
-        "llm_by_model": q.llm_by("model"),
-        "ingestion_by_status": q.ingestion_by_status(),
-        "ingestion_by_index": q.ingestion_by_index(),
+        "llm_by_stage": q.llm_by("stage", rids),
+        "llm_by_model": q.llm_by("model", rids),
+        "ingestion_by_status": q.ingestion_by_status(rids),
+        "ingestion_by_index": q.ingestion_by_index(rids),
         "recent_runs": [
             {k: _iso(r.get(k)) if k == "started_at" else r.get(k)
              for k in ("run_id", "auditor_id", "status", "started_at", "duration_ms",
@@ -101,8 +102,9 @@ def technical() -> dict:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def user_level() -> dict:
-    runs = q.runs()
+def user_level(since: str | None = None, until: str | None = None) -> dict:
+    rids = q.run_ids_in_window(since, until)
+    runs = q.runs(since=since, until=until)
     bands = {"High": 0, "Medium": 0, "Low": 0, "No Risk": 0}
     for r in runs:
         bands[_run_risk_band(r)] += 1
@@ -117,7 +119,7 @@ def user_level() -> dict:
     q_done = sum(_i(r.get("questions_completed")) for r in runs)
     q_skip = sum(_i(r.get("questions_skipped")) for r in runs)
     q_err = sum(_i(r.get("questions_error")) for r in runs)
-    scope = q.findings_by_scope()
+    scope = q.findings_by_scope(rids)
     scopes_covered = len({s["scope_area"] for s in scope if s.get("scope_area") not in (None, "(none)")})
 
     return {
@@ -127,7 +129,7 @@ def user_level() -> dict:
             "total_findings": sum(findings.values()),
             "high_findings": findings["high"],
             "scopes_covered": scopes_covered,
-            "recurrence_findings": q.recurrence_count(),
+            "recurrence_findings": q.recurrence_count(rids),
             "questions_reviewed": q_tot,
         },
         "runs_by_band": [{"band": k, "runs": v} for k, v in bands.items()],
@@ -137,7 +139,7 @@ def user_level() -> dict:
             {"severity": "Low", "count": findings["low"]},
             {"severity": "No Risk", "count": findings["no_risk"]},
         ],
-        "findings_by_scope": q.findings_by_scope(),
+        "findings_by_scope": scope,
         "questions": {"total": q_tot, "completed": q_done, "skipped": q_skip, "error": q_err},
         "by_auditor": _by_auditor(runs),
     }
@@ -156,13 +158,15 @@ def _by_auditor(runs: list[dict]) -> list[dict]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def leadership(manual_hours: float | None = None, hourly: float | None = None) -> dict:
+def leadership(manual_hours: float | None = None, hourly: float | None = None,
+               since: str | None = None, until: str | None = None) -> dict:
     """Business value / ROI. Assumptions are explicit and tunable so the number is defensible.
 
     Override order: runtime args (set live from the UI) → env (OBS_MANUAL_HOURS_PER_AUDIT /
     OBS_ANALYST_HOURLY_USD) → built-in defaults (40 analyst hours/audit, $120/hour).
     """
-    runs = q.runs()
+    rids = q.run_ids_in_window(since, until)
+    runs = q.runs(since=since, until=until)
     completed = [r for r in runs if r.get("status") == "completed"]
     total_cost = round(sum(_f(r.get("total_cost_usd")) for r in runs), 2)
     high = sum(_i(r.get("findings_high")) for r in runs)
@@ -178,9 +182,9 @@ def leadership(manual_hours: float | None = None, hourly: float | None = None) -
     roi_pct = round((manual_cost - total_cost) / total_cost * 100, 1) if total_cost > 0 else None
 
     # Audit-program effectiveness / posture (web-informed: coverage, findings/audit, KRIs, efficiency).
-    scope_rows = q.findings_by_scope()
+    scope_rows = q.findings_by_scope(rids)
     scopes_covered = len({s["scope_area"] for s in scope_rows if s.get("scope_area") not in (None, "(none)")})
-    recurrence = q.recurrence_count()
+    recurrence = q.recurrence_count(rids)
     rem = q.remediation_summary()
     unresolved_high = rem["open"] + rem["in_progress"]
     avg_cycle_min = round(sum(_f(r.get("duration_ms")) for r in runs) / len(runs) / 60000, 1) if runs else 0
@@ -251,6 +255,6 @@ def leadership(manual_hours: float | None = None, hourly: float | None = None) -
             {"label": "Est. manual cost", "usd": round(manual_cost, 0)},
         ],
         "audits_over_time": _series(runs, "total_cost_usd"),
-        "risk_mix": q.findings_by_category(),
-        "top_scopes": q.findings_by_scope()[:12],
+        "risk_mix": q.findings_by_category(rids),
+        "top_scopes": scope_rows[:12],
     }

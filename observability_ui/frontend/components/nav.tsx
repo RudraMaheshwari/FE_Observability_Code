@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Activity, Layers, ShieldAlert, Briefcase, GitCompare, RefreshCw } from "lucide-react";
+import { Activity, Layers, Bot, ShieldAlert, Briefcase, GitCompare, RefreshCw } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { DateRangeControl } from "./date-range";
 import { api } from "@/lib/api";
 import { mutate } from "swr";
 
 const LINKS = [
   { href: "/", label: "Operations", icon: Activity },
   { href: "/runs", label: "Runs", icon: Layers },
+  { href: "/llm", label: "LLM", icon: Bot },
   { href: "/risk", label: "Risk Overview", icon: ShieldAlert },
   { href: "/executive", label: "Executive", icon: Briefcase },
   { href: "/change-review", label: "Change Review", icon: GitCompare },
@@ -41,6 +43,7 @@ export function Nav() {
         })}
       </nav>
       <div className="flex items-center gap-2">
+        <DateRangeControl />
         <button className="btn inline-flex items-center gap-1.5" onClick={refresh}><RefreshCw size={15} /> Refresh</button>
         <ThemeToggle />
       </div>

@@ -54,6 +54,30 @@ def findings(scope: str = Query(..., description="Scope area to drill into")) ->
     return {"scope": scope, "findings": _guard(lambda: q.findings_for_scope(scope))}
 
 
+@app.get("/api/llm")
+def llm() -> dict:
+    return _guard(q.llm_overview)
+
+
+@app.get("/api/questions")
+def questions(limit: int = Query(default=1000, le=5000)) -> dict:
+    return {"questions": _guard(lambda: q.questions_global(limit))}
+
+
+@app.get("/api/questions/{question_uid}/calls")
+def question_calls(question_uid: str) -> dict:
+    return {
+        "question_uid": question_uid,
+        "calls": _guard(lambda: q.llm_calls_for_question(question_uid)),
+        "findings": _guard(lambda: q.findings_for_question(question_uid)),
+    }
+
+
+@app.get("/api/auditors/{auditor}")
+def auditor(auditor: str) -> dict:
+    return _guard(lambda: q.auditor_detail(auditor))
+
+
 class RemediationRequest(BaseModel):
     finding_uid: str
     status: str                # open | in_progress | resolved
@@ -67,21 +91,22 @@ def remediation(req: RemediationRequest) -> dict:
 
 
 @app.get("/api/technical")
-def technical() -> dict:
-    return _guard(levels.technical)
+def technical(since: str | None = Query(default=None), until: str | None = Query(default=None)) -> dict:
+    return _guard(lambda: levels.technical(since, until))
 
 
 @app.get("/api/user")
-def user() -> dict:
-    return _guard(levels.user_level)
+def user(since: str | None = Query(default=None), until: str | None = Query(default=None)) -> dict:
+    return _guard(lambda: levels.user_level(since, until))
 
 
 @app.get("/api/leadership")
 def leadership(
     manual_hours: float | None = Query(default=None, description="Override: manual analyst hours per audit"),
     hourly: float | None = Query(default=None, description="Override: blended analyst cost per hour (USD)"),
+    since: str | None = Query(default=None), until: str | None = Query(default=None),
 ) -> dict:
-    return _guard(lambda: levels.leadership(manual_hours, hourly))
+    return _guard(lambda: levels.leadership(manual_hours, hourly, since, until))
 
 
 @app.get("/api/runs/{run_id}")

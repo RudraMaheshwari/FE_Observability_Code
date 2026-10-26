@@ -68,6 +68,24 @@ export function HBars({ data, x, y, colorKey, map, h = 340, onBarClick }: any) {
   );
 }
 
+export function StackedBars({ data, x, series, h = 300 }: { data: any[]; x: string; series: string[]; h?: number }) {
+  const c = useChartColors();
+  return (
+    <ResponsiveContainer width="100%" height={h}>
+      <BarChart data={data} margin={{ left: -6, right: 8, top: 6, bottom: 0 }}>
+        <CartesianGrid stroke={c.grid} vertical={false} />
+        <XAxis dataKey={x} tick={{ fill: c.muted, fontSize: 11 }} tickLine={false} axisLine={{ stroke: c.grid }} />
+        <YAxis tick={{ fill: c.muted, fontSize: 12 }} tickLine={false} axisLine={false} />
+        <Tooltip {...tip(c)} />
+        <Legend wrapperStyle={{ color: c.muted }} />
+        {series.map((s, i) => (
+          <Bar key={s} dataKey={s} stackId="a" fill={SERIES[i % SERIES.length]} radius={i === series.length - 1 ? [6, 6, 0, 0] : undefined} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function AreaTrend({ data, x, series, h = 280 }: { data: any[]; x: string; series: string[]; h?: number }) {
   const c = useChartColors();
   return (

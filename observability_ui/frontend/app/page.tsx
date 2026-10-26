@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useTechnical } from "@/lib/api";
+import { useDateRange } from "@/components/date-range";
 import { Section, KpiRow, Kpi, Panel, Skeleton, EmptyState, ErrorNote, fmtUsd, fmtInt } from "@/components/ui";
 import { Bars, AreaTrend } from "@/components/charts";
 
 const shortT = (t: string) => (t ? t.slice(5, 16).replace("T", " ") : "");
 
 export default function Operations() {
-  const { data, error, isLoading } = useTechnical();
+  const { qs } = useDateRange();
+  const { data, error, isLoading } = useTechnical(qs);
 
   return (
     <>

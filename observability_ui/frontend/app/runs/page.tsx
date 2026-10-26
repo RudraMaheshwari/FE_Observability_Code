@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRunsList } from "@/lib/api";
-import { Section, Panel, Skeleton, EmptyState, ErrorNote, fmtUsd, fmtInt } from "@/components/ui";
+import { Section, Panel, Skeleton, EmptyState, ErrorNote, ExportButton, fmtUsd, fmtInt } from "@/components/ui";
 
 const COLS = ["run_id", "auditor_id", "status", "started_at", "duration_ms", "findings_high",
   "findings_medium", "findings_low", "total_cost_usd", "total_tokens", "total_llm_calls"];
@@ -32,6 +32,7 @@ export default function Runs() {
               {["all", "completed", "running", "failed", "partial"].map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <span className="text-xs text-muted">{rows.length} of {data.runs.length}</span>
+            <div className="ml-auto"><ExportButton rows={rows} filename="runs" columns={COLS} /></div>
           </div>
           <div className="overflow-auto">
             <table className="w-full text-left text-sm">

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useExecutive } from "@/lib/api";
-import { Section, KpiRow, Kpi, Panel, Skeleton, EmptyState, ErrorNote, fmtUsd, fmtInt } from "@/components/ui";
+import { useDateRange } from "@/components/date-range";
+import { Section, KpiRow, Kpi, Panel, Skeleton, EmptyState, ErrorNote, ExportButton, fmtUsd, fmtInt } from "@/components/ui";
 import { Bars, Donut, AreaTrend, SEVERITY } from "@/components/charts";
 
 function Delta({ v }: { v: number | null }) {
@@ -15,7 +16,8 @@ export default function Executive() {
   // Empty inputs → backend uses the env/default assumption; typing a value recomputes ROI server-side.
   const [hours, setHours] = useState("");
   const [rate, setRate] = useState("");
-  const { data, error, isLoading } = useExecutive(hours, rate);
+  const { qs } = useDateRange();
+  const { data, error, isLoading } = useExecutive(hours, rate, qs);
 
   return (
     <>
@@ -62,14 +64,35 @@ export default function Executive() {
           </div>
 
           {data.quarterly?.length > 0 && (
-            <div className="grid grid-cols-2 gap-4">
-              <Panel title="Quarterly — audits & high-risk findings">
-                <AreaTrend data={data.quarterly} x="quarter" series={["audits", "high"]} h={280} />
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <Panel title="Quarterly — audits & high-risk findings">
+                  <AreaTrend data={data.quarterly} x="quarter" series={["audits", "high"]} h={280} />
+                </Panel>
+                <Panel title="Quarterly — AI spend (USD)">
+                  <Bars data={data.quarterly} x="quarter" y="spend" h={280} color="#28c76f" />
+                </Panel>
+              </div>
+              <Panel title="Quarterly detail">
+                <div className="mb-2 flex justify-end"><ExportButton rows={data.quarterly} filename="executive_quarterly" /></div>
+                <table className="w-full text-left text-sm">
+                  <thead><tr className="text-muted">{["quarter", "audits", "findings", "high", "AI spend", "est. value", "ROI %"].map((c) => <th key={c} className="border-b border-border px-2 py-1.5 font-semibold">{c}</th>)}</tr></thead>
+                  <tbody>
+                    {data.quarterly.map((d: any, i: number) => (
+                      <tr key={i} className="hover:bg-surface2">
+                        <td className="border-b border-border px-2 py-1.5 font-medium">{d.quarter}</td>
+                        <td className="border-b border-border px-2 py-1.5">{d.audits}</td>
+                        <td className="border-b border-border px-2 py-1.5">{d.findings}</td>
+                        <td className="border-b border-border px-2 py-1.5">{d.high}</td>
+                        <td className="border-b border-border px-2 py-1.5">{fmtUsd(d.spend)}</td>
+                        <td className="border-b border-border px-2 py-1.5">{fmtUsd(d.est_value)}</td>
+                        <td className="border-b border-border px-2 py-1.5">{d.roi_pct != null ? `${d.roi_pct}%` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </Panel>
-              <Panel title="Quarterly — AI spend (USD)">
-                <Bars data={data.quarterly} x="quarter" y="spend" h={280} color="#28c76f" />
-              </Panel>
-            </div>
+            </>
           )}
 
           {data.remediation && (
