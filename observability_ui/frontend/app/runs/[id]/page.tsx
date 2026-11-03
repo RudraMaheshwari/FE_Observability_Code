@@ -30,10 +30,14 @@ export default function RunDetail() {
       ) : (
         <div className="flex flex-col gap-4">
           <KpiRow cols={4}>
-            <Kpi label="Auditor" value={data.run.auditor_id} sub={data.run.status} />
-            <Kpi label="Cost" value={fmtUsd(Number(data.run.total_cost_usd || 0))} accent />
-            <Kpi label="Tokens" value={fmtInt(Number(data.run.total_tokens || 0))} />
-            <Kpi label="LLM calls" value={fmtInt(Number(data.run.total_llm_calls || 0))} />
+            <Kpi label="Auditor" value={data.run.auditor_id} sub={data.run.status}
+              info="Who ran this audit, and whether it finished, failed or is still running." />
+            <Kpi label="Cost" value={fmtUsd(Number(data.run.total_cost_usd || 0))} accent
+              info="Total AI model spend for this single audit — the sum of all its model calls." />
+            <Kpi label="Tokens" value={fmtInt(Number(data.run.total_tokens || 0))}
+              info="Total text this audit processed, in tokens (roughly ¾ of a word each) — sent in plus written back." />
+            <Kpi label="LLM calls" value={fmtInt(Number(data.run.total_llm_calls || 0))}
+              info="How many individual questions this audit put to the AI model as it worked through its steps." />
           </KpiRow>
 
           <div className="flex gap-1">
@@ -44,7 +48,7 @@ export default function RunDetail() {
             ))}
           </div>
 
-          <Panel>
+          <Panel info="The full trace of this audit. Switch tabs to see the questionnaire items it reviewed, every model call it made (expand one to read the exact prompt and response), the risk findings it produced, and the source material it loaded.">
             {tab === "LLM calls" ? <LlmCalls rows={data.llm_calls} /> : <Table rows={data[KEYS[tab]]} />}
           </Panel>
         </div>

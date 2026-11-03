@@ -185,33 +185,42 @@ def llm_by(dim: str, run_ids: tuple | None = None) -> list[dict]:
     )
 
 
-def llm_overview() -> dict:
-    """Totals + per-dimension breakdowns for the dedicated LLM analytics page."""
+def llm_overview(run_ids: tuple | None = None) -> dict:
+    """Totals + per-dimension breakdowns for the dedicated LLM analytics page.
+
+    When run_ids is given (a date window → set of runs), every number is restricted to those runs so
+    the headline cost matches the Operations 'Total cost' for the same dates (both are the sum of
+    every model-call cost)."""
+    rc, rp = _run_filter(run_ids)
     tot = _rows(
         f"SELECT COUNT(*) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, "
         f"SUM(cached_tokens) AS cached_tokens, SUM(reasoning_tokens) AS reasoning_tokens, "
         f"SUM(total_tokens) AS tokens, SUM(cost_usd) AS cost_usd, AVG(latency_ms) AS avg_latency_ms, "
-        f"SUM(CASE WHEN status <> 'ok' THEN 1 ELSE 0 END) AS errors FROM {LLM_CALL}"
+        f"SUM(CASE WHEN status <> 'ok' THEN 1 ELSE 0 END) AS errors FROM {LLM_CALL} {_where(rc)}", rp
     )
     return {
         "totals": tot[0] if tot else {},
-        "by_stage": llm_by("stage"),
-        "by_agent": llm_by("agent_name"),
-        "by_model": llm_by("model"),
-        "by_prompt": llm_by("prompt_name"),
+        "by_stage": llm_by("stage", run_ids),
+        "by_agent": llm_by("agent_name", run_ids),
+        "by_model": llm_by("model", run_ids),
+        "by_prompt": llm_by("prompt_name", run_ids),
     }
 
 
-def questions_global(limit: int = 1000) -> list[dict]:
-    """Per-question analytics across ALL runs (joined to the run's auditor) — one row per question."""
+def questions_global(limit: int = 1000, run_ids: tuple | None = None) -> list[dict]:
+    """Per-question analytics across runs (joined to the run's auditor) — one row per question.
+
+    Restricted to the date window's runs when run_ids is given, so it stays in step with the other tabs."""
+    clause = "q.run_id::text = ANY(%s)" if run_ids is not None else ""
+    params: tuple = (list(run_ids),) if run_ids is not None else ()
     return _rows(
         f"SELECT q.question_uid::text AS question_uid, q.run_id::text AS run_id, r.auditor_id, "
         f"q.question_index, q.source_file, q.assigned_scope, q.final_risk_category, q.final_matrix_score, "
         f"q.likelihood, q.impact, q.llm_confidence, q.derived_confidence, q.transactional_invoked, "
         f"q.status, q.num_llm_calls, q.input_tokens, q.output_tokens, q.total_tokens, q.cost_usd, q.duration_ms "
         f"FROM {QUESTION} q LEFT JOIN {RUN} r ON q.run_id = r.run_id "
-        f"ORDER BY q.cost_usd DESC NULLS LAST LIMIT %s",
-        (limit,),
+        f"{_where(clause)}ORDER BY q.cost_usd DESC NULLS LAST LIMIT %s",
+        params + (limit,),
     )
 
 

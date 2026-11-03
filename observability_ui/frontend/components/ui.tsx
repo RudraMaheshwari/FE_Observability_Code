@@ -11,10 +11,35 @@ export function Section({ title, subtitle }: { title: string; subtitle?: string 
   );
 }
 
-export function Kpi({ label, value, sub, accent }: { label: string; value: React.ReactNode; sub?: string; accent?: boolean }) {
+/** A small "i" that reveals a plain-English explanation on hover/focus. Kept business-friendly:
+ *  it says what the number or chart means and how to read it — never anything technical. */
+export function InfoDot({ text, className }: { text: string; className?: string }) {
+  return (
+    <span className={clsx("group relative inline-flex align-middle", className)}>
+      <button
+        type="button"
+        aria-label="What this shows"
+        className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-border text-[9px] font-bold leading-none text-muted transition hover:border-accent2 hover:text-accent2 focus:outline-none focus:ring-1 focus:ring-accent2"
+      >
+        i
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-[130%] z-50 w-60 -translate-x-1/2 rounded-lg border border-border bg-surface p-2.5 text-xs font-normal normal-case leading-snug tracking-normal text-text opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+export function Kpi({ label, value, sub, accent, info }: { label: string; value: React.ReactNode; sub?: string; accent?: boolean; info?: string }) {
   return (
     <div className={clsx("card p-4 transition hover:-translate-y-0.5", accent && "ring-1 ring-accent/40")}>
-      <div className="kpi-label">{label}</div>
+      <div className="flex items-center gap-1.5">
+        <div className="kpi-label">{label}</div>
+        {info && <InfoDot text={info} />}
+      </div>
       <div className={clsx("kpi-value", accent && "text-accent")}>{value}</div>
       {sub && <div className="kpi-sub">{sub}</div>}
     </div>
@@ -25,10 +50,15 @@ export function KpiRow({ children, cols = 5 }: { children: React.ReactNode; cols
   return <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>{children}</div>;
 }
 
-export function Panel({ title, children, className }: { title?: string; children: React.ReactNode; className?: string }) {
+export function Panel({ title, children, className, info }: { title?: string; children: React.ReactNode; className?: string; info?: string }) {
   return (
     <div className={clsx("card p-4", className)}>
-      {title && <div className="mb-2 text-sm font-bold">{title}</div>}
+      {(title || info) && (
+        <div className="mb-2 flex items-center gap-1.5">
+          {title && <div className="text-sm font-bold">{title}</div>}
+          {info && <InfoDot text={info} />}
+        </div>
+      )}
       {children}
     </div>
   );

@@ -112,18 +112,74 @@ export function AreaTrend({ data, x, series, h = 280 }: { data: any[]; x: string
   );
 }
 
+const RAD = Math.PI / 180;
+
+/** Pick black or white label text for legibility on a given slice colour. */
+function readableText(hex: string): string {
+  const h = (hex || "").replace("#", "");
+  if (h.length < 6) return "#fff";
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#141a2e" : "#fff";
+}
+
+/** Donut with the share of each slice written ON the slice (e.g. "42%") and in the legend, so the
+ *  split is readable without hovering. Slices under 5% are left unlabelled to avoid clutter. */
 export function Donut({ data, nameKey, valueKey, map, h = 300 }: any) {
   const c = useChartColors();
+  const rows = (data || []).filter((d: any) => Number(d[valueKey] || 0) > 0);
+  const total = rows.reduce((s: number, d: any) => s + Number(d[valueKey] || 0), 0);
+  const share = (v: number) => (total > 0 ? (Number(v) || 0) / total * 100 : 0);
+
+  const sliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }: any) => {
+    if (percent < 0.05) return null;                       // too thin to label legibly
+    const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + r * Math.cos(-midAngle * RAD);
+    const y = cy + r * Math.sin(-midAngle * RAD);
+    const color = (map && map[name]) || SERIES[index % SERIES.length];
+    return (
+      <text x={x} y={y} fill={readableText(color)} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700}>
+        {Math.round(percent * 100)}%
+      </text>
+    );
+  };
+
+  const legend = (props: any) => (
+    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: "4px 16px", justifyContent: "center" }}>
+      {(props.payload || []).map((e: any, i: number) => {
+        const v = Number(e.payload?.[valueKey] ?? e.payload?.value ?? 0);
+        return (
+          <li key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: c.muted }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: e.color, display: "inline-block" }} />
+            {e.value} <span style={{ color: c.text, fontWeight: 600 }}>{share(v).toFixed(1)}%</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const tipContent = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const p = payload[0];
+    const v = Number(p.value || 0);
+    return (
+      <div style={{ background: c.surface, border: `1px solid ${c.grid}`, borderRadius: 12, color: c.text, padding: "6px 10px", fontSize: 12 }}>
+        <div style={{ fontWeight: 700 }}>{p.name}</div>
+        <div>{v.toLocaleString()} · {share(v).toFixed(1)}%</div>
+      </div>
+    );
+  };
+
   return (
     <ResponsiveContainer width="100%" height={h}>
       <PieChart>
-        <Pie data={data} dataKey={valueKey} nameKey={nameKey} innerRadius="58%" outerRadius="86%" paddingAngle={2}>
-          {data.map((d: any, i: number) => (
+        <Pie data={rows} dataKey={valueKey} nameKey={nameKey} innerRadius="58%" outerRadius="86%" paddingAngle={2}
+          labelLine={false} label={sliceLabel} isAnimationActive={false}>
+          {rows.map((d: any, i: number) => (
             <Cell key={i} stroke="transparent" fill={(map && map[d[nameKey]]) || SERIES[i % SERIES.length]} />
           ))}
         </Pie>
-        <Tooltip {...tip(c)} />
-        <Legend wrapperStyle={{ color: c.muted }} />
+        <Tooltip content={tipContent} />
+        <Legend content={legend} />
       </PieChart>
     </ResponsiveContainer>
   );

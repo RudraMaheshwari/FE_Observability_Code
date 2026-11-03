@@ -55,13 +55,18 @@ def findings(scope: str = Query(..., description="Scope area to drill into")) ->
 
 
 @app.get("/api/llm")
-def llm() -> dict:
-    return _guard(q.llm_overview)
+def llm(since: str | None = Query(default=None), until: str | None = Query(default=None)) -> dict:
+    rids = _guard(lambda: q.run_ids_in_window(since, until))
+    return _guard(lambda: q.llm_overview(rids))
 
 
 @app.get("/api/questions")
-def questions(limit: int = Query(default=1000, le=5000)) -> dict:
-    return {"questions": _guard(lambda: q.questions_global(limit))}
+def questions(
+    limit: int = Query(default=1000, le=5000),
+    since: str | None = Query(default=None), until: str | None = Query(default=None),
+) -> dict:
+    rids = _guard(lambda: q.run_ids_in_window(since, until))
+    return {"questions": _guard(lambda: q.questions_global(limit, rids))}
 
 
 @app.get("/api/questions/{question_uid}/calls")

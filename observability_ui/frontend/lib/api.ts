@@ -55,8 +55,8 @@ export const useConfig = () => useSWR("/api/config", fetcher);
 export const useRunsList = (limit = 200) => useSWR(`/api/runs?limit=${limit}`, fetcher);
 export const useFindingsByScope = (scope: string | null) =>
   useSWR(scope ? `/api/findings?scope=${encodeURIComponent(scope)}` : null, fetcher);
-export const useLlm = () => useSWR("/api/llm", fetcher);
-export const useQuestions = (limit = 1000) => useSWR(`/api/questions?limit=${limit}`, fetcher);
+export const useLlm = (dateQs?: string) => useSWR(withQs("/api/llm", dateQs), fetcher);
+export const useQuestions = (limit = 1000, dateQs?: string) => useSWR(withQs(`/api/questions?limit=${limit}`, dateQs), fetcher);
 export const useQuestionCalls = (uid: string | null) =>
   useSWR(uid ? `/api/questions/${uid}/calls` : null, fetcher);
 export const useAuditor = (a: string | null) =>

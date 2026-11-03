@@ -78,18 +78,26 @@ export default function ChangeReview() {
       ) : (
         <div className="flex flex-col gap-4">
           <KpiRow>
-            <Kpi label="Common rows" value={fmtInt(s.common)} />
-            <Kpi label="Modified" value={fmtInt(s.modified)} accent />
-            <Kpi label="Minor" value={fmtInt(s.minor)} />
-            <Kpi label="Added / Removed" value={`${s.added} / ${s.removed}`} />
-            <Kpi label="Mean similarity" value={s.mean_similarity != null ? s.mean_similarity : "—"} />
+            <Kpi label="Common rows" value={fmtInt(s.common)}
+              info="Rows that exist in both the original AI output and the reviewer-edited copy — the items that could be compared." />
+            <Kpi label="Modified" value={fmtInt(s.modified)} accent
+              info="Rows the reviewer meaningfully changed — the wording shifted enough to count as a real edit, not just a tweak. These are the useful retraining signal." />
+            <Kpi label="Minor" value={fmtInt(s.minor)}
+              info="Rows with only a small edit (e.g. a tidy-up) that didn't change the meaning." />
+            <Kpi label="Added / Removed" value={`${s.added} / ${s.removed}`}
+              info="Rows the reviewer added that the AI hadn't produced, and rows the reviewer deleted." />
+            <Kpi label="Mean similarity" value={s.mean_similarity != null ? s.mean_similarity : "—"}
+              info="On average, how close the edited rows stayed to the AI's original wording (0 = completely rewritten, 1 = identical). Lower means reviewers rewrote more." />
           </KpiRow>
 
           <div className="grid grid-cols-3 gap-4">
-            <Panel title="Row status">
+            <Panel title="Row status"
+              info="The split of rows by how much they changed — identical, minor, modified, added or removed. The percentage on each slice shows its share, so you can see at a glance how much the reviewer altered.">
               <Donut data={statusCounts} nameKey="status" valueKey="count" map={STATUS_COLORS} h={300} />
             </Panel>
-            <Panel title="Retraining signal" className="col-span-2">
+            <Panel title="Retraining signal" className="col-span-2"
+              info="A plain-English read on what reviewers changed and why — the meaningful edits, summarised so they can be folded back into the AI's training to reduce the same corrections next time.">
+
               {modified.length === 0 ? (
                 <div className="text-sm text-muted">No modified rows — the two tables are semantically equivalent.</div>
               ) : (

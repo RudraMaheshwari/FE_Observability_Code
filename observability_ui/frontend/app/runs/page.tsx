@@ -25,7 +25,7 @@ export default function Runs() {
       {error ? <ErrorNote error={error} /> : isLoading || !data ? <Skeleton cols={3} /> : !data.runs?.length ? (
         <EmptyState icon="🧵" title="No runs recorded" message="Runs appear here once the pipeline runs with OBS_ENABLED=true." />
       ) : (
-        <Panel>
+        <Panel info="A searchable list of every audit run with its status, cost, size and finding counts. Search by auditor or run ID, filter by status, then click a run ID to open its full trace.">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <input className="input w-64" placeholder="Search auditor / run id…" value={q} onChange={(e) => setQ(e.target.value)} />
             <select className="input w-40" value={status} onChange={(e) => setStatus(e.target.value)}>

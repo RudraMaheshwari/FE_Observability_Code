@@ -27,10 +27,14 @@ export default function Executive() {
       ) : (
         <div className="flex flex-col gap-4">
           <KpiRow cols={4}>
-            <Kpi label="Audits delivered" value={fmtInt(data.kpis.audits_delivered)} />
-            <Kpi label="High-risk identified" value={fmtInt(data.kpis.high_risk_identified)} sub="compliance exposure surfaced" accent />
-            <Kpi label="AI spend" value={fmtUsd(data.kpis.ai_spend_usd)} sub={`${fmtUsd(data.kpis.cost_per_audit)} / audit`} />
-            <Kpi label="Estimated ROI" value={data.kpis.roi_pct != null ? `${data.kpis.roi_pct}%` : "—"} sub={`~${fmtInt(data.kpis.est_hours_saved)} analyst hrs saved`} />
+            <Kpi label="Audits delivered" value={fmtInt(data.kpis.audits_delivered)}
+              info="How many audits were completed end-to-end in the selected dates — the volume of work the program produced." />
+            <Kpi label="High-risk identified" value={fmtInt(data.kpis.high_risk_identified)} sub="compliance exposure surfaced" accent
+              info="The number of high-severity compliance issues caught. This is the risk the program surfaced that would otherwise have gone unnoticed." />
+            <Kpi label="AI spend" value={fmtUsd(data.kpis.ai_spend_usd)} sub={`${fmtUsd(data.kpis.cost_per_audit)} / audit`}
+              info="What the AI models cost to deliver these audits — the same figure as 'Total cost' on the Operations tab. The sub-line shows the average cost of a single audit." />
+            <Kpi label="Estimated ROI" value={data.kpis.roi_pct != null ? `${data.kpis.roi_pct}%` : "—"} sub={`~${fmtInt(data.kpis.est_hours_saved)} analyst hrs saved`}
+              info="Return on investment: how the estimated cost of doing this work manually compares with the AI spend. 100% means the manual approach would have cost twice as much. Tune the assumptions at the bottom of the page." />
           </KpiRow>
 
           {data.qoq?.quarter && (
@@ -41,39 +45,53 @@ export default function Executive() {
           )}
 
           <KpiRow>
-            <Kpi label="Findings / audit" value={data.kpis.findings_per_audit} sub="program effectiveness" />
-            <Kpi label="High-risk rate" value={`${data.kpis.high_risk_rate_pct}%`} sub="of all findings" />
-            <Kpi label="Scopes covered" value={fmtInt(data.kpis.scopes_covered)} sub="risk coverage" />
-            <Kpi label="Recurrences (KRI)" value={fmtInt(data.kpis.recurrence_findings)} sub="repeat findings" />
-            <Kpi label="Avg cycle" value={`${data.kpis.avg_cycle_minutes}m`} sub="per audit run" />
+            <Kpi label="Findings / audit" value={data.kpis.findings_per_audit} sub="program effectiveness"
+              info="On average, how many issues each audit raises. A sustained drop can mean cleaner operations — or that audits are looking less deeply." />
+            <Kpi label="High-risk rate" value={`${data.kpis.high_risk_rate_pct}%`} sub="of all findings"
+              info="What share of all findings are high-severity. A higher rate means the issues being caught are more serious." />
+            <Kpi label="Scopes covered" value={fmtInt(data.kpis.scopes_covered)} sub="risk coverage"
+              info="How many distinct risk areas the audits examined — a measure of how broadly the program covers the compliance landscape." />
+            <Kpi label="Recurrences (KRI)" value={fmtInt(data.kpis.recurrence_findings)} sub="repeat findings"
+              info="Issues flagged again after appearing in a prior audit. A key risk indicator: repeat findings suggest earlier fixes didn't stick." />
+            <Kpi label="Avg cycle" value={`${data.kpis.avg_cycle_minutes}m`} sub="per audit run"
+              info="Average wall-clock time to complete one audit, in minutes. A proxy for how quickly results reach the business." />
           </KpiRow>
 
           <div className="grid grid-cols-2 gap-4">
-            <Panel title="AI spend vs. estimated manual cost">
+            <Panel title="AI spend vs. estimated manual cost"
+              info="The AI spend side by side with what the same work would be estimated to cost if done by analysts manually. The gap is the saving. The manual figure uses the assumptions at the bottom of the page.">
               <Bars data={data.spend_vs_value.map((d: any) => ({ label: d.label, usd: d.usd }))} x="label" y="usd" h={300} color="#28c76f" />
             </Panel>
-            <Panel title="Risk mix (findings by severity)">
+            <Panel title="Risk mix (findings by severity)"
+              info="The overall split of findings by severity. The percentage on each slice shows how much of the total it represents — a one-glance read on the risk profile.">
               <Donut data={data.risk_mix} nameKey="risk_category" valueKey="findings" map={SEVERITY} h={300} />
             </Panel>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <Kpi label="Total findings" value={fmtInt(data.kpis.total_findings)} sub="risk coverage" />
-            <Kpi label="Cost per high-risk" value={data.kpis.cost_per_high_risk != null ? fmtUsd(data.kpis.cost_per_high_risk) : "—"} />
-            <Kpi label="Estimated value" value={fmtUsd(data.kpis.est_value_usd)} sub="vs. manual effort" />
+            <Kpi label="Total findings" value={fmtInt(data.kpis.total_findings)} sub="risk coverage"
+              info="Every issue raised across all audits and all severity levels in the selected dates." />
+            <Kpi label="Cost per high-risk" value={data.kpis.cost_per_high_risk != null ? fmtUsd(data.kpis.cost_per_high_risk) : "—"}
+              info="AI spend divided by the number of high-risk issues found — roughly what it costs to surface one serious issue." />
+            <Kpi label="Estimated value" value={fmtUsd(data.kpis.est_value_usd)} sub="vs. manual effort"
+              info="The estimated cost of producing these audits manually — i.e. the value the AI delivered. Based on the assumptions at the bottom of the page." />
           </div>
 
           {data.quarterly?.length > 0 && (
             <>
               <div className="grid grid-cols-2 gap-4">
-                <Panel title="Quarterly — audits & high-risk findings">
+                <Panel title="Quarterly — audits & high-risk findings"
+                  info="Audit volume and high-risk issues caught, quarter by quarter. Watch whether risk caught moves with the number of audits run.">
                   <AreaTrend data={data.quarterly} x="quarter" series={["audits", "high"]} h={280} />
                 </Panel>
-                <Panel title="Quarterly — AI spend (USD)">
+                <Panel title="Quarterly — AI spend (USD)"
+                  info="Total AI spend per quarter — the trend in what the program costs to run.">
                   <Bars data={data.quarterly} x="quarter" y="spend" h={280} color="#28c76f" />
                 </Panel>
               </div>
-              <Panel title="Quarterly detail">
+              <Panel title="Quarterly detail"
+                info="The numbers behind the quarterly charts: audits, findings, high-risk count, AI spend, estimated manual value and ROI for each quarter.">
+
                 <div className="mb-2 flex justify-end"><ExportButton rows={data.quarterly} filename="executive_quarterly" /></div>
                 <table className="w-full text-left text-sm">
                   <thead><tr className="text-muted">{["quarter", "audits", "findings", "high", "AI spend", "est. value", "ROI %"].map((c) => <th key={c} className="border-b border-border px-2 py-1.5 font-semibold">{c}</th>)}</tr></thead>
@@ -97,19 +115,24 @@ export default function Executive() {
 
           {data.remediation && (
             <div className="grid grid-cols-3 gap-4">
-              <Panel title="High-risk remediation status" className="col-span-2">
+              <Panel title="High-risk remediation status" className="col-span-2"
+                info="Where the high-risk issues stand on being fixed: open, in progress or resolved. The percentage on each slice shows the share in that state. Statuses are set on the Risk Overview tab.">
                 <Donut data={data.remediation} nameKey="status" valueKey="count"
                   map={{ Open: "#ff4d4f", "In progress": "#ffa64d", Resolved: "#28c76f" }} h={280} />
               </Panel>
-              <Kpi label="Unresolved high-risk" value={fmtInt(data.kpis.unresolved_high_risk)} sub="open + in progress — set status in Risk Overview" accent />
+              <Kpi label="Unresolved high-risk" value={fmtInt(data.kpis.unresolved_high_risk)} sub="open + in progress — set status in Risk Overview" accent
+                info="High-risk issues not yet resolved (open plus in progress). The backlog of serious items still needing attention." />
             </div>
           )}
 
-          <Panel title="Top scope areas by findings">
+          <Panel title="Top scope areas by findings"
+            info="The risk areas generating the most findings overall — where the program's attention is concentrated. Taller bars mean more issues in that area.">
             <Bars data={topScopes(data.top_scopes)} x="scope_area" y="findings" h={300} color="#5b8cff" />
           </Panel>
 
-          <Panel title="ROI assumptions — tune these to your organisation">
+          <Panel title="ROI assumptions — tune these to your organisation"
+            info="The two inputs behind the ROI and value figures: how many analyst hours one audit would take manually, and the blended analyst cost per hour. Change them to match your organisation and every ROI number updates.">
+
             <div className="flex flex-wrap items-end gap-4">
               <div className="w-56">
                 <div className="kpi-label mb-1">Manual hours per audit</div>
