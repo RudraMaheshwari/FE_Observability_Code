@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { grafanaEnv, grafanaFetch, missingEnv, causeOf } from "@/lib/grafana";
+import { grafanaEnv, grafanaFetch, missingEnv, causeOf, extractPanels, dashMeta } from "@/lib/grafana";
 
-// Server-side proxy for the Grafana dashboard definition — keeps GRAFANA_TOKEN out of the browser and
-// does NOT use the Python backend. Equivalent to:
-//   curl -H "Authorization: Bearer $GRAFANA_TOKEN" "$GRAFANA_URL/api/dashboards/uid/$GRAFANA_DASHBOARD_UID"
+// Server-side proxy for the Grafana dashboard. Parses BOTH the classic (v1) and new (v2) dashboard
+// schemas into a uniform panel list so the UI doesn't care which schema Grafana returns. Token stays
+// server-side; the Python backend is NOT involved.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -14,14 +14,22 @@ export async function GET() {
   const { url, uid } = grafanaEnv();
   try {
     const res = await grafanaFetch(`/api/dashboards/uid/${uid}`, { headers: { Accept: "application/json" } });
-    const body = await res.text();
     if (!res.ok) {
-      return NextResponse.json(
-        { error: `Grafana at ${url} responded ${res.status}: ${body.slice(0, 300)}` },
-        { status: res.status },
-      );
+      const body = await res.text();
+      return NextResponse.json({ error: `Grafana at ${url} responded ${res.status}: ${body.slice(0, 300)}` }, { status: res.status });
     }
-    return new NextResponse(body, { status: 200, headers: { "Content-Type": "application/json" } });
+    const json = await res.json();
+    const dash = json?.dashboard ?? json;
+    const meta = dashMeta(dash);
+    const panels = extractPanels(dash).map((p) => ({
+      id: p.id,
+      title: p.title,
+      type: p.type,
+      unit: p.unit,
+      max: p.max,
+      queryText: p.queryText,
+    }));
+    return NextResponse.json({ ...meta, panels });
   } catch (e: unknown) {
     return NextResponse.json({ error: `Could not reach Grafana at ${url} — ${causeOf(e)}` }, { status: 502 });
   }

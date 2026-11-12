@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { grafanaEnv, grafanaFetch, missingEnv, causeOf } from "@/lib/grafana";
+import { grafanaEnv, grafanaFetch, missingEnv, causeOf, extractPanels, resolveDatasource } from "@/lib/grafana";
 
 // Run a panel's own query via Grafana's datasource-query API and return normalized {columns, rows}.
-// This renders real data WITHOUT the Grafana image-renderer plugin. Only queries already defined on the
-// dashboard panel are run (we re-read the dashboard and use its targets) — no arbitrary SQL from client.
+// Datasource-agnostic: forwards whatever query the panel defines (SQL rawSql, Prometheus expr, Azure
+// Monitor / Log Analytics azureLogAnalytics, …) and resolves the datasource by name when needed. Only
+// dashboard-defined queries run — no arbitrary query from the client.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -13,18 +14,6 @@ const RANGE_MS: Record<string, number> = {
   "now-7d": 7 * 864e5,
   "now-30d": 30 * 864e5,
 };
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function findPanel(panels: any[], id: number): any | null {
-  for (const p of panels) {
-    if (p.id === id) return p;
-    if (p.panels) {
-      const f = findPanel(p.panels, id);
-      if (f) return f;
-    }
-  }
-  return null;
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalize(resp: any): { columns: string[]; rows: unknown[][] } {
@@ -58,37 +47,26 @@ export async function GET(req: NextRequest) {
   try {
     const dres = await grafanaFetch(`/api/dashboards/uid/${uid}`, { headers: { Accept: "application/json" } });
     if (!dres.ok) return NextResponse.json({ error: `dashboard ${dres.status}` }, { status: dres.status });
-    const dash = (await dres.json())?.dashboard;
-    const panel = findPanel(dash?.panels || [], panelId);
+    const json = await dres.json();
+    const panel = extractPanels(json?.dashboard ?? json).find((p) => p.id === panelId);
     if (!panel) return NextResponse.json({ error: "panel not found" }, { status: 404 });
+    if (!panel.queries.length) return NextResponse.json({ error: "panel has no query" }, { status: 400 });
 
-    const queries = (panel.targets || [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((t: any) => !t.hide)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((t: any, i: number) => {
-        const ds = t.datasource || panel.datasource || {};
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const q: any = {
-          refId: t.refId || String.fromCharCode(65 + i),
-          datasource: typeof ds === "string" ? { uid: ds } : { uid: ds.uid, type: ds.type },
-          intervalMs: 60000,
-          maxDataPoints: 2000,
-        };
-        if (t.rawSql) {
-          q.rawSql = t.rawSql;
-          q.format = t.format || "table";
-        } else if (t.expr) {
-          q.expr = t.expr;
-        } else {
-          Object.assign(q, t);
-        }
-        return q;
-      })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((q: any) => q.datasource?.uid);
-
-    if (!queries.length) return NextResponse.json({ error: "panel has no runnable query" }, { status: 400 });
+    const queries = [];
+    for (const q of panel.queries) {
+      const ds = await resolveDatasource(q.datasource);
+      if (!ds?.uid) continue; // datasource couldn't be resolved — skip this query
+      queries.push({
+        refId: q.refId,
+        datasource: { uid: ds.uid, type: ds.type },
+        intervalMs: 60000,
+        maxDataPoints: 2000,
+        ...q.body, // forwards rawSql / expr / azureLogAnalytics / queryType / etc.
+      });
+    }
+    if (!queries.length) {
+      return NextResponse.json({ error: "could not resolve this panel's datasource — give the service account Viewer on it" }, { status: 400 });
+    }
 
     const qres = await grafanaFetch(`/api/ds/query`, {
       method: "POST",
