@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Activity, Layers, Bot, ShieldAlert, Briefcase, GitCompare, RefreshCw } from "lucide-react";
+import { Activity, Layers, Bot, ShieldAlert, Briefcase, GitCompare, RefreshCw, LayoutDashboard } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { DateRangeControl } from "./date-range";
 import { api } from "@/lib/api";
@@ -16,6 +16,7 @@ const LINKS = [
   { href: "/risk", label: "Risk Overview", icon: ShieldAlert },
   { href: "/executive", label: "Executive", icon: Briefcase },
   { href: "/change-review", label: "Change Review", icon: GitCompare },
+  { href: "/grafana", label: "Demo", icon: LayoutDashboard },
 ];
 
 export function Nav() {
